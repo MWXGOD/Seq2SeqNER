@@ -36,5 +36,6 @@ Thumbs.db
 cache/
 output/
 swanlog/
+lightning_logs/
 .virtual_documents/
 .ipynb_checkpoints/
