@@ -83,8 +83,17 @@ for epoch in range(hyperargs.epochs_num):
     if max_f1<final_f1:
         max_f1 = final_f1
         os.makedirs(hyperargs.output_model_path, exist_ok=True)
+        save_path = os.path.join(hyperargs.output_model_path, "bart_ner_ckpt.bin")
+        torch.save(
+            {
+                "state_dict": model.state_dict(),
+                "hparams": dict(model.hparams),
+            }, 
+            save_path
+        )
+        model.seq2seq.save_pretrained(hyperargs.output_model_path)
+        model.tokenizer.save_pretrained(hyperargs.output_model_path)
         os.makedirs(hyperargs.output_result_path, exist_ok=True)
-        model.save_pretrained(hyperargs.output_model_path)
         with open(f"{hyperargs.output_result_path}/gen_text_batch.json", 'w', encoding='utf-8') as f:
             json.dump({"pred_label": gen_text_per_epoch}, f, indent=4)
         with open(f"{hyperargs.output_result_path}/lab_text_batch.json", 'w', encoding='utf-8') as f:
