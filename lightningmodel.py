@@ -197,7 +197,7 @@ class Seq2SeqNERModel(L.LightningModule):
             self.R_E += len(bel)
             for bep_item in bep:
                 if bep_item in bel:
-                    self.R_C += 1
+                    self.C_E += 1
             # 更新span无位置的PRC
             # batch_entities_label_without_index = ['中国-LOC']
             batch_entities_label_without_index = [f'{l[0]}-{l[1]}' for l in bel]
