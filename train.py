@@ -82,9 +82,9 @@ for epoch in range(hyperargs.epochs_num):
     final_f1 = max(F1, F1_S)
     if max_f1<final_f1:
         max_f1 = final_f1
-        os.makedirs(hyperargs.output_path, exist_ok=True)
+        os.makedirs(hyperargs.output_model_path, exist_ok=True)
         os.makedirs(hyperargs.output_result_path, exist_ok=True)
-        model.save_pretrained(hyperargs.output_path)
+        model.save_pretrained(hyperargs.output_model_path)
         with open(f"{hyperargs.output_result_path}/gen_text_batch.json", 'w', encoding='utf-8') as f:
             json.dump({"pred_label": gen_text_per_epoch}, f, indent=4)
         with open(f"{hyperargs.output_result_path}/lab_text_batch.json", 'w', encoding='utf-8') as f:
