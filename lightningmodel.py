@@ -18,6 +18,15 @@ class Seq2SeqNERModel(L.LightningModule):
         self.seq2seq = AutoModelForSeq2SeqLM.from_pretrained(self.hparams.model_name_or_path)
         self.tokenizer = AutoTokenizer.from_pretrained(self.hparams.model_name_or_path)
 
+        # symbal->Type
+        self.symbal2nertype = {
+            '<':'ORG-S',
+            '>':'ORG-E',
+            '(':'LOC-S',
+            ')':'LOC-E',
+            '[':'PER-S',
+            ']':'PER-E'
+        }
 
         # 定义PRF的变量
         self.P_E = 0.0
@@ -42,22 +51,29 @@ class Seq2SeqNERModel(L.LightningModule):
             )
         return outputs
 
-    def training_step(self, batch):
+    def training_step(self, batch, optimizer=None, scheduler=None, accelerator=None):
+        optimizer.zero_grad()
         outputs = self(batch["input_ids"], batch["attention_mask"], batch["labels"])
         train_loss = outputs.loss
-        swanlab.log({"train_loss_per_step": train_loss.item()})
+        accelerator.backward(train_loss)
+        optimizer.step()
+        scheduler.step()
+        # swanlab.log({"train_loss_per_step": train_loss.item()})
         return train_loss
     
     def validation_step(self, batch):
-        gen_outputs = self.seq2seq.generate(batch["input_ids"], **self.hparams.generation_config)
+        gen_outputs = self.seq2seq.generate(batch["input_ids"], **self.hparams.generation_args)
+        labels = batch["labels"]
+        labels[labels == -100] = self.tokenizer.pad_token_id
 
-        gen_text_batch = self.tokenizer.batch_decode(gen_outputs, skip_spacial_tokens=True)
-        lab_text_batch = self.tokenizer.batch_decode(batch["labels"], skip_spacial_tokens=True)
+        gen_text_batch = self.tokenizer.batch_decode(gen_outputs, skip_special_tokens=True)
+        lab_text_batch = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
 
 
-        batch_entities_label = self.batch_text2entity(lab_text_batch, islabel = True)
-        batch_entities_pred = self.batch_text2entity(gen_text_batch)
-        self.compute_metric_step_update(batch_entities_label, batch_entities_pred)
+        batch_entities_lab = self.batch_text2entity(lab_text_batch, is_labels = True)
+        batch_entities_gen = self.batch_text2entity(gen_text_batch)
+        self.compute_metric_step_update(batch_entities_lab, batch_entities_gen)
+        return gen_text_batch, lab_text_batch
 
     def on_validation_epoch_end(self):
         P = self.C_E / self.P_E if self.P_E > 0.0 else 0.0
@@ -71,21 +87,22 @@ class Seq2SeqNERModel(L.LightningModule):
             self.max_f1 = F1
         if F1_S > self.max_f1_S:
             self.max_f1_S = F1_S
-        swanlab.log({"F1": F1, "F1_S": F1_S})
+        # swanlab.log({"F1": F1, "F1_S": F1_S})
+        return P, R, F1, P_S, R_S, F1_S
 
-    def configure_optimizers(self):
-        optimizer = AdamW(self.parameters(), lr=self.hparams.learning_rate)
-        stepping_batches = self.trainer.estimated_stepping_batches
-        num_warmup_steps = int((self.hparams.warmup_rate)*stepping_batches)
-        scheduler = get_constant_schedule_with_warmup(optimizer = optimizer, num_warmup_steps = num_warmup_steps)
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {
-            "scheduler":scheduler,
-            "interval": "step",
-            "frequency": 1,
-            }
-        }
+    # def configure_optimizers(self):
+    #     optimizer = AdamW(self.parameters(), lr=self.hparams.learning_rate)
+    #     stepping_batches = self.trainer.estimated_stepping_batches
+    #     num_warmup_steps = int((self.hparams.warmup_rate)*stepping_batches)
+    #     scheduler = get_constant_schedule_with_warmup(optimizer = optimizer, num_warmup_steps = num_warmup_steps)
+    #     return {
+    #         "optimizer": optimizer,
+    #         "lr_scheduler": {
+    #         "scheduler":scheduler,
+    #         "interval": "step",
+    #         "frequency": 1,
+    #         }
+    #     }
 
 
     def text2entity(self, text):
@@ -162,10 +179,10 @@ class Seq2SeqNERModel(L.LightningModule):
             for text_id, text_item in enumerate(batch_text):
                 text_item_entities = self.text2entity(text_item)
                 text_item_entities_temp += text_item_entities
-                if (text_id+1)%self.hparams.generate_hyper["num_return_sequences"] == 0:
+                if (text_id+1)%self.hparams.generation_args["num_return_sequences"] == 0:
                     text_item_entities_vote = []
                     for entity in text_item_entities_temp:
-                        if text_item_entities_temp.count(entity) > self.hparams.generate_hyper["num_return_sequences"]/2 and entity not in text_item_entities_vote:
+                        if text_item_entities_temp.count(entity) > self.hparams.generation_args["num_return_sequences"]/2 and entity not in text_item_entities_vote:
                             text_item_entities_vote.append(entity)
                     batch_entities.append(text_item_entities_vote)
                     text_item_entities_temp = []
@@ -219,7 +236,7 @@ if __name__ == "__main__":
                     deterministic = True,
                     precision = 'bf16-mixed',
                     gpu_device = [1],
-                    generate_hyper = dict(num_beams=5, 
+                    generation_args = dict(num_beams=5, 
                                           num_return_sequences = 1,#是否引入多候选生成进行投票
                                           output_scores = True
                                           )
