@@ -11,6 +11,7 @@ from data_module import Seq2SeqNERDataModule
 from transformers import get_constant_schedule_with_warmup
 
 
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--args_path', type=str, default='argsfile/aishell_ner_args_4_bart.json')
 shell_args = parser.parse_args()
@@ -35,7 +36,7 @@ dev_dataloader = data_module.dev_dataloader()
 model = Seq2SeqNERModel(**hyperargs.__dict__)
 
 # 优化器
-optimizer = AdamW(model.parameters(), lr=hyperargs.learning_rate)
+optimizer = AdamW(model.parameters(), lr=hyperargs.learning_rate, weight_decay = hyperargs.weight_decay)
 
 # 学习率调度器
 num_warmup_steps = max(1, int(hyperargs.warmup_rate * hyperargs.epochs_num * len(train_dataloader)))
@@ -80,6 +81,13 @@ for epoch in range(hyperargs.epochs_num):
     P, R, F1, P_S, R_S, F1_S = model.on_validation_epoch_end()
     swanlab.log({"F1": F1, "F1_S": F1_S})
     final_f1 = max(F1, F1_S)
+
+    os.makedirs(hyperargs.output_result_path, exist_ok=True)
+    with open(f"{hyperargs.output_result_path}/gen_text_batch_{epoch}.json", 'w', encoding='utf-8') as f:
+        json.dump({"pred_label": gen_text_per_epoch}, f, indent=4, ensure_ascii=False)
+    with open(f"{hyperargs.output_result_path}/lab_text_batch_{epoch}.json", 'w', encoding='utf-8') as f:
+        json.dump({"gold_label": lab_text_per_epoch}, f, indent=4, ensure_ascii=False)
+
     if max_f1<final_f1:
         max_f1 = final_f1
         os.makedirs(hyperargs.output_model_path, exist_ok=True)
@@ -94,10 +102,10 @@ for epoch in range(hyperargs.epochs_num):
         model.seq2seq.save_pretrained(hyperargs.output_model_path)
         model.tokenizer.save_pretrained(hyperargs.output_model_path)
         os.makedirs(hyperargs.output_result_path, exist_ok=True)
-        with open(f"{hyperargs.output_result_path}/gen_text_batch.json", 'w', encoding='utf-8') as f:
-            json.dump({"pred_label": gen_text_per_epoch}, f, indent=4)
-        with open(f"{hyperargs.output_result_path}/lab_text_batch.json", 'w', encoding='utf-8') as f:
-            json.dump({"gold_label": lab_text_per_epoch}, f, indent=4)
+        with open(f"{hyperargs.output_result_path}/best_gen_text_batch.json", 'w', encoding='utf-8') as f:
+            json.dump({"pred_label": gen_text_per_epoch}, f, indent=4, ensure_ascii=False)
+        with open(f"{hyperargs.output_result_path}/best_lab_text_batch.json", 'w', encoding='utf-8') as f:
+            json.dump({"gold_label": lab_text_per_epoch}, f, indent=4, ensure_ascii=False)
         logger.info("模型已保存")
     logger.info(f"评价指标F: {final_f1:.2f}")
     dev_end = time.time()

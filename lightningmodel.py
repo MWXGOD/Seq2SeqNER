@@ -5,6 +5,7 @@ import swanlab
 from data_module import Seq2SeqNERDataModule
 from torch.optim import AdamW
 from datetime import datetime
+from torch.nn.utils import clip_grad_norm_ as clip
 
 
 
@@ -56,14 +57,20 @@ class Seq2SeqNERModel(L.LightningModule):
         outputs = self(batch["input_ids"], batch["attention_mask"], batch["labels"])
         train_loss = outputs.loss
         accelerator.backward(train_loss)
+        clip(self.parameters(), 1)
         optimizer.step()
         scheduler.step()
         # swanlab.log({"train_loss_per_step": train_loss.item()})
         return train_loss
     
     def validation_step(self, batch):
-        gen_outputs = self.seq2seq.generate(batch["input_ids"], **self.hparams.generation_args)
-        labels = batch["labels"]
+        gen_outputs = self.seq2seq.generate(batch["input_ids"],\
+                                            attention_mask = batch["attention_mask"],\
+                                            num_beams = self.hparams.num_beams,\
+                                            num_return_sequences = self.hparams.num_return_sequences,\
+                                            output_scores = self.hparams.output_scores,\
+                                            max_new_tokens = self.hparams.max_length)
+        labels = batch["labels"].clone()
         labels[labels == -100] = self.tokenizer.pad_token_id
 
         gen_text_batch = self.tokenizer.batch_decode(gen_outputs, skip_special_tokens=True)
@@ -179,10 +186,10 @@ class Seq2SeqNERModel(L.LightningModule):
             for text_id, text_item in enumerate(batch_text):
                 text_item_entities = self.text2entity(text_item)
                 text_item_entities_temp += text_item_entities
-                if (text_id+1)%self.hparams.generation_args["num_return_sequences"] == 0:
+                if (text_id+1)%self.hparams.num_return_sequences == 0:
                     text_item_entities_vote = []
                     for entity in text_item_entities_temp:
-                        if text_item_entities_temp.count(entity) > self.hparams.generation_args["num_return_sequences"]/2 and entity not in text_item_entities_vote:
+                        if text_item_entities_temp.count(entity) > self.hparams.num_return_sequences/2 and entity not in text_item_entities_vote:
                             text_item_entities_vote.append(entity)
                     batch_entities.append(text_item_entities_vote)
                     text_item_entities_temp = []
