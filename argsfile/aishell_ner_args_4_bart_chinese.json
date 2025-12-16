@@ -1,0 +1,19 @@
+{
+    "data_path": "data/aishell_ner",
+    "model_name_or_path": "cache/bart-large-chinese",
+    "output_model_path": "output/aishell_ner/_chinese_checkpoint",
+    "output_result_path": "output/aishell_ner/bart-large-chinese/result",
+    "swanlab_project_name": "Seq2SeqNER-MWX",
+    "batch_size": 32,
+    "max_length":64,
+    "epochs_num": 50,
+    "learning_rate": 1e-5,
+    "warmup_rate": 0.1,
+    "weight_decay":0.01,
+    "seed": 42,
+    "gpu_id": 0,
+    "mixed_precision": "bf16",
+    "num_beams":2,
+    "num_return_sequences":1,
+    "output_scores":false
+}

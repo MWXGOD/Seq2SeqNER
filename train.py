@@ -91,7 +91,7 @@ for epoch in range(hyperargs.epochs_num):
     if max_f1<final_f1:
         max_f1 = final_f1
         os.makedirs(hyperargs.output_model_path, exist_ok=True)
-        save_path = os.path.join(hyperargs.output_model_path, "bart_ner_ckpt.bin")
+        save_path = os.path.join(hyperargs.output_model_path, f"{hyperargs.output_model_path.split('/')[-1]}.bin")
         torch.save(
             {
                 "state_dict": model.state_dict(),
