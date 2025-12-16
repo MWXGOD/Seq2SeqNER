@@ -10,6 +10,13 @@ from torch.optim import AdamW
 from data_module import Seq2SeqNERDataModule
 from transformers import get_constant_schedule_with_warmup
 
+# 目前存在的主要训练问题：
+# 1) forward 没在 bf16 autocast 里
+# 2) 每 step 都 swanlab.log（非常拖）
+# 3) 清梯度用 set_to_none=True
+# 4) 用 accelerate 自带裁剪（避免不必要同步/不匹配）
+# 5) 验证：你到底有没有跑在 bf16？
+# 
 
 
 parser = argparse.ArgumentParser()
@@ -57,15 +64,18 @@ for epoch in range(hyperargs.epochs_num):
         desc=f"Epoch [{epoch+1}/{hyperargs.epochs_num}] Training",
         leave=False
     )
+    loss_per_epoch = 0
     for batch in train_bar:
         loss = model.training_step(batch, optimizer, scheduler, accelerator)
-        swanlab.log({"train_loss_per_step": loss.item()})
+        loss_per_epoch += loss.item()
+    swanlab.log({"train_loss_per_step": loss_per_epoch/len(train_dataloader)})
     train_end = time.time()
     logger.info(f"训练结束，第{epoch+1}轮总时长：{(train_end-train_start)/60:.2f}分钟")
     
 
     dev_start = time.time()
     model.eval()
+    model.clear_PRC()
     gen_text_per_epoch = []
     lab_text_per_epoch = []
     with torch.no_grad():

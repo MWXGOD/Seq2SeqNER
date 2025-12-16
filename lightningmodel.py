@@ -53,11 +53,12 @@ class Seq2SeqNERModel(L.LightningModule):
         return outputs
 
     def training_step(self, batch, optimizer=None, scheduler=None, accelerator=None):
-        optimizer.zero_grad()
-        outputs = self(batch["input_ids"], batch["attention_mask"], batch["labels"])
-        train_loss = outputs.loss
+        optimizer.zero_grad(set_to_none=True)
+        with accelerator.autocast():
+            outputs = self(batch["input_ids"], batch["attention_mask"], batch["labels"])
+            train_loss = outputs.loss
         accelerator.backward(train_loss)
-        clip(self.parameters(), 1)
+        accelerator.clip_grad_norm_(self.parameters(), 1.0)
         optimizer.step()
         scheduler.step()
         # swanlab.log({"train_loss_per_step": train_loss.item()})
@@ -212,6 +213,14 @@ class Seq2SeqNERModel(L.LightningModule):
             self.P_E_S += len(set(batch_entities_pred_without_index))
             self.R_E_S += len(set(batch_entities_label_without_index))
             self.C_E_S += len(set(batch_entities_pred_without_index) & set(batch_entities_label_without_index))
+
+    def clear_PRC(self):
+        self.P_E = 0.0
+        self.R_E = 0.0
+        self.C_E = 0.0
+        self.P_E_S = 0.0
+        self.R_E_S = 0.0
+        self.C_E_S = 0.0
             
 
 
