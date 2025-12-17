@@ -32,7 +32,8 @@ data_module.setup(stage = "test")
 test_dataloader = data_module.test_dataloader()
 
 # 读取模型
-ckpt = torch.load("ner_full.pt", map_location="cpu")
+save_path = os.path.join(hyperargs.output_model_path, f"{hyperargs.output_model_path.split('/')[-1]}.bin")
+ckpt = torch.load(save_path, map_location="cpu")
 model = Seq2SeqNERModel(**ckpt["hparams"])
 model.load_state_dict(ckpt["state_dict"], strict=True)
 model.eval()
@@ -49,6 +50,7 @@ with torch.no_grad():
     gen_text_per_epoch = []
     lab_text_per_epoch = []
     for batch in test_bar:
+        batch.to(hyperargs.gpu_id)
         gen_text_batch, lab_text_batch = model.validation_step(batch)
         gen_text_per_epoch += gen_text_batch
         lab_text_per_epoch += lab_text_batch
@@ -63,4 +65,4 @@ with torch.no_grad():
 
 
 
-
+# 测试的实体级别F1：0.8351314389910349, Span级别的F10.839811004420058
