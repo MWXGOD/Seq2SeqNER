@@ -75,7 +75,7 @@ for epoch in range(hyperargs.epochs_num):
 
     dev_start = time.time()
     model.eval()
-    model.clear_PRC()
+    model.on_validation_epoch_start()
     gen_text_per_epoch = []
     lab_text_per_epoch = []
     with torch.no_grad():

@@ -64,6 +64,9 @@ class Seq2SeqNERModel(L.LightningModule):
         # swanlab.log({"train_loss_per_step": train_loss.item()})
         return train_loss
     
+    def on_validation_epoch_start(self):
+        self.clear_PRC()
+    
     def validation_step(self, batch):
         gen_outputs = self.seq2seq.generate(batch["input_ids"],\
                                             attention_mask = batch["attention_mask"],\
@@ -201,18 +204,18 @@ class Seq2SeqNERModel(L.LightningModule):
 
         for bel, bep in zip(batch_entities_label, batch_entities_pred):
             # 更新span位置的P,R,C
-            self.P_E += len(bep)
-            self.R_E += len(bel)
+            self.P_E_S += len(bep)
+            self.R_E_S += len(bel)
             for bep_item in bep:
                 if bep_item in bel:
-                    self.C_E += 1
+                    self.C_E_S += 1
             # 更新span无位置的PRC
             # batch_entities_label_without_index = ['中国-LOC']
             batch_entities_label_without_index = [f'{l[0]}-{l[1]}' for l in bel]
             batch_entities_pred_without_index = [f'{p[0]}-{p[1]}' for p in bep]
-            self.P_E_S += len(set(batch_entities_pred_without_index))
-            self.R_E_S += len(set(batch_entities_label_without_index))
-            self.C_E_S += len(set(batch_entities_pred_without_index) & set(batch_entities_label_without_index))
+            self.P_E += len(set(batch_entities_pred_without_index))
+            self.R_E += len(set(batch_entities_label_without_index))
+            self.C_E += len(set(batch_entities_pred_without_index) & set(batch_entities_label_without_index))
 
     def clear_PRC(self):
         self.P_E = 0.0
